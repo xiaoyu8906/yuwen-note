@@ -12,12 +12,13 @@ from bs4 import BeautifulSoup
 # 注册后可获得免费 API Key
 # ============================================
 
-# 你的 DeepSeek API Key（需要注册获取，免费）
-# 注册地址：https://platform.deepseek.com/
+# 从 GitHub Secrets 读取 API Key
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+USE_AI = True
 
-# 如果没有 API Key，也可以使用备用方案（模板填充）
-USE_AI = True  # 设为 False 可关闭 AI
+# 如果环境变量没有，可以直接设置（测试用，正式用上面那种）
+if not DEEPSEEK_API_KEY:
+    DEEPSEEK_API_KEY = "sk-6ee38e7687bb4d899abf7874409b863a"
 
 def crawl_hanchacha(lesson_name):
     """从 hanchacha.com 爬取所有相关资料"""
