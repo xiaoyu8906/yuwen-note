@@ -6,7 +6,6 @@ on:
       lesson_name:
         description: '课文名称'
         required: true
-        default: '海底世界'
         type: string
 
 jobs:
