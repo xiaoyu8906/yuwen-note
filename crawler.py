@@ -6,18 +6,34 @@ import time
 import re
 from bs4 import BeautifulSoup
 
-# 从环境变量读取 API Key
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+# 从环境变量读取 API Key（你的OpenRouter的Key）
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
-def crawl_hanchacha(lesson_name):
-    """从 hanchacha.com 爬取所有相关资料"""
-    print(f"  🔍 正在从 hanchacha.com 搜索《{lesson_name}》...")
-    
+def crawl_hanchacha(lesson_name, lesson_url=None):
+    """爬取资料：如果有手动输入的链接，就直接爬这个，否则自动搜索"""
     all_text = ""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
+    # 如果用户手动输入了链接，直接爬这个链接
+    if lesson_url and lesson_url.startswith('http'):
+        print(f"  🔍 正在爬取手动输入的链接: {lesson_url}")
+        try:
+            page_resp = requests.get(lesson_url, headers=headers, timeout=10)
+            page_soup = BeautifulSoup(page_resp.text, 'html.parser')
+            content_div = page_soup.find('article') or page_soup.find('div', class_='entry-content')
+            
+            if content_div:
+                text = content_div.get_text(strip=True)
+                text = re.sub(r'\s+', ' ', text)
+                all_text = text[:4000]
+                return all_text
+        except Exception as e:
+            print(f"  手动链接爬取失败，将尝试自动搜索: {e}")
+    
+    # 没有链接或者链接失败，就自动搜索
+    print(f"  🔍 正在从 hanchacha.com 搜索《{lesson_name}》...")
     try:
         search_url = f"https://hanchacha.com/?s={lesson_name}"
         response = requests.get(search_url, headers=headers, timeout=10)
@@ -54,15 +70,15 @@ def crawl_hanchacha(lesson_name):
     return all_text[:4000]
 
 def generate_with_ai(lesson_name, raw_materials):
-    """使用 AI 生成详细的学霸笔记"""
+    """使用 OpenRouter 的 AI 生成详细的学霸笔记"""
     
-    print(f"  🤖 AI 状态: {'已启用' if DEEPSEEK_API_KEY else '未配置'}")
+    print(f"  🤖 AI 状态: {'已启用' if OPENAI_API_KEY else '未配置'}")
     
-    if not DEEPSEEK_API_KEY:
+    if not OPENAI_API_KEY:
         return generate_fallback_note(lesson_name, raw_materials)
     
     try:
-        print("  🤖 正在调用 DeepSeek API...")
+        print("  🤖 正在调用 OpenRouter API...")
         
         prompt = f"""你是小学语文特级教师。请为课文《{lesson_name}》生成一份超级详细的学霸笔记。
 
@@ -159,13 +175,13 @@ def generate_with_ai(lesson_name, raw_materials):
 请直接输出笔记，不要输出解释。"""
 
         response = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
+            "https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "deepseek-chat",
+                "model": "openai/gpt-3.5-turbo",
                 "messages": [
                     {"role": "system", "content": "你是小学语文特级教师，擅长写超详细、超专业的课文笔记。"},
                     {"role": "user", "content": prompt}
@@ -220,13 +236,19 @@ def main():
         sys.exit(1)
     
     lesson_name = sys.argv[1]
+    # 接收用户手动输入的链接
+    lesson_url = sys.argv[2] if len(sys.argv) > 2 else None
+    # 处理空的情况
+    if lesson_url == "None" or lesson_url == "":
+        lesson_url = None
+    
     print("=" * 50)
     print(f"🕷️ 正在为《{lesson_name}》生成笔记...")
-    print(f"🤖 DeepSeek API: {'已配置' if DEEPSEEK_API_KEY else '未配置'}")
+    print(f"🤖 OpenRouter API: {'已配置' if OPENAI_API_KEY else '未配置'}")
     print("=" * 50)
     
     print("\n⭐ 爬取 hanchacha.com...")
-    hanchacha_text = crawl_hanchacha(lesson_name)
+    hanchacha_text = crawl_hanchacha(lesson_name, lesson_url)
     
     print("\n🤖 调用 AI 生成笔记...")
     note = generate_with_ai(lesson_name, hanchacha_text)
