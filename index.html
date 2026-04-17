@@ -54,7 +54,6 @@
         }
         button:hover { opacity: 0.9; }
         #status { margin-top: 15px; text-align: center; color: #666; }
-        .footer { text-align: center; margin-top: 20px; color: #999; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -81,15 +80,12 @@
         <button onclick="generateNote()">🚀 重新生成笔记</button>
         <div id="status"></div>
     </div>
-    <div class="footer">
-        公众号 · Yoffie说
-    </div>
 
     <script>
         // 请修改这里的配置为你自己的信息
-        const GITHUB_USERNAME = "你的GitHub用户名";
+        const GITHUB_USERNAME = "xiaoyu8906";
         const REPO_NAME = "yuwen-note";
-        const GITHUB_TOKEN = "你的GitHub Token";
+        const GITHUB_TOKEN = "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";
 
         async function generateNote() {
             const lessonName = document.getElementById('lessonName').value.trim();
