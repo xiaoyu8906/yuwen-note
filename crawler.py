@@ -1,128 +1,72 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>语文笔记生成器·AI智能版</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .header { text-align: center; color: white; margin-bottom: 30px; }
-        .header h1 { font-size: 32px; margin-bottom: 10px; }
-        .header p { font-size: 16px; opacity: 0.9; }
-        .container {
-            max-width: 700px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-        .input-group { margin-bottom: 15px; }
-        .input-group input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            margin-bottom: 5px;
-        }
-        .tip {
-            font-size: 14px;
-            color: #666;
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-        .tip.info { background: #fff3cd; color: #856404; }
-        .tip.warning { background: #fff3cd; color: #856404; }
-        .tip.success { background: #d4edda; color: #155724; }
-        button {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        button:hover { opacity: 0.9; }
-        #status { margin-top: 15px; text-align: center; color: #666; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🕷️ 语文笔记生成器·AI智能版</h1>
-        <p>每次点击都重新爬取 + AI 重新生成 | 无缓存 | 强制刷新</p>
-    </div>
-    <div class="container">
-        <div class="input-group">
-            <input type="text" id="lessonName" placeholder="输入课文名，比如：海底世界">
-        </div>
-        <div class="input-group">
-            <input type="text" id="lessonUrl" placeholder="如果自动搜索失败，手动填hanchacha的课文链接，比如：https://hanchacha.com/yuwen/xxx.html">
-        </div>
-        <div class="tip info">
-            💡 如果自动搜索失败，可以手动在 hanchacha.com 找到课文链接填入上方
-        </div>
-        <div class="tip warning">
-            ⚡ 每次点击都会重新爬取 hanchacha.com 并调用 AI 重新生成，不会使用旧笔记
-        </div>
-        <div class="tip success">
-            ✅ GitHub Token 已配置，爬虫功能可用！每次都会重新生成。
-        </div>
-        <button onclick="generateNote()">🚀 重新生成笔记</button>
-        <div id="status"></div>
-    </div>
+import os
+import sys
+import requests
+from bs4 import BeautifulSoup
+from openai import OpenAI
 
-    <script>
-        // 请修改这里的配置为你自己的信息
-        const GITHUB_USERNAME =  "xiaoyu8906";
-        const REPO_NAME = "yuwen-note";
-        const GITHUB_TOKEN = "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";
+# 获取参数
+lesson_name = sys.argv[1]
+lesson_url = sys.argv[2] if len(sys.argv) > 2 else None
 
-        async function generateNote() {
-            const lessonName = document.getElementById('lessonName').value.trim();
-            const lessonUrl = document.getElementById('lessonUrl').value.trim();
-            if (!lessonName) {
-                alert("请输入课文名！");
-                return;
-            }
+# 爬取课文内容
+if lesson_url:
+    # 手动输入的链接
+    url = lesson_url
+else:
+    # 自动搜索
+    search_url = f"https://hanchacha.com/search?q={lesson_name}"
+    search_response = requests.get(search_url)
+    soup = BeautifulSoup(search_response.text, 'html.parser')
+    # 找到第一个搜索结果
+    first_result = soup.find('a', href=True)
+    if not first_result:
+        raise Exception("没找到对应的课文")
+    url = "https://hanchacha.com" + first_result['href']
 
-            const status = document.getElementById('status');
-            status.textContent = "正在触发自动化流程，请稍候...";
+# 爬取课文内容
+response = requests.get(url)
+soup = BeautifulSoup(response.text, 'html.parser')
+content = soup.find('div', class_='content')
+if not content:
+    raise Exception("没找到课文内容")
+text = content.get_text(strip=True, separator='\n')
 
-            try {
-                const response = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/actions/workflows/crawl.yml/dispatches`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    },
-                    body: JSON.stringify({
-                        ref: 'main',
-                        inputs: {
-                            lesson_name: lessonName,
-                            lesson_url: lessonUrl
-                        }
-                    })
-                });
+# AI生成笔记
+api_key = os.environ.get("OPENAI_API_KEY")
+# 这里改成你自己的base_url，比如OpenRouter的话是https://openrouter.ai/api/v1
+base_url = "https://api.openai.com/v1"
 
-                if (response.ok) {
-                    status.textContent = `触发成功！正在为《${lessonName}》生成笔记，完成后会自动保存到仓库的data目录~`;
-                } else {
-                    status.textContent = "触发失败，请检查你的GitHub配置是否正确。";
-                }
-            } catch (e) {
-                status.textContent = "出错了：" + e.message;
-            }
-        }
-    </script>
-</body>
-</html>
+client = OpenAI(
+    api_key=api_key,
+    base_url=base_url
+)
+
+prompt = f"""
+你是一个小学语文老师，根据下面的课文内容，生成一份完整的小学语文笔记，包含：
+1. 课文解析
+2. 生字词（拼音、组词）
+3. 重点句子解析
+4. 中心思想
+5. 课后练习
+
+课文内容：
+{text}
+
+请用markdown格式输出，不要有多余的内容。
+"""
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": prompt}
+    ]
+)
+
+note = response.choices[0].message.content
+
+# 保存笔记
+os.makedirs('data', exist_ok=True)
+with open(f'data/{lesson_name}.md', 'w', encoding='utf-8') as f:
+    f.write(note)
+
+print(f"笔记生成成功：data/{lesson_name}.md")
