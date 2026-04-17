@@ -1,265 +1,128 @@
-# -*- coding: utf-8 -*-
-import requests
-import sys
-import os
-import time
-import re
-from bs4 import BeautifulSoup
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>语文笔记生成器·AI智能版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { font-size: 16px; opacity: 0.9; }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .input-group { margin-bottom: 15px; }
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .tip {
+            font-size: 14px;
+            color: #666;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .tip.info { background: #fff3cd; color: #856404; }
+        .tip.warning { background: #fff3cd; color: #856404; }
+        .tip.success { background: #d4edda; color: #155724; }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        #status { margin-top: 15px; text-align: center; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🕷️ 语文笔记生成器·AI智能版</h1>
+        <p>每次点击都重新爬取 + AI 重新生成 | 无缓存 | 强制刷新</p>
+    </div>
+    <div class="container">
+        <div class="input-group">
+            <input type="text" id="lessonName" placeholder="输入课文名，比如：海底世界">
+        </div>
+        <div class="input-group">
+            <input type="text" id="lessonUrl" placeholder="如果自动搜索失败，手动填hanchacha的课文链接，比如：https://hanchacha.com/yuwen/xxx.html">
+        </div>
+        <div class="tip info">
+            💡 如果自动搜索失败，可以手动在 hanchacha.com 找到课文链接填入上方
+        </div>
+        <div class="tip warning">
+            ⚡ 每次点击都会重新爬取 hanchacha.com 并调用 AI 重新生成，不会使用旧笔记
+        </div>
+        <div class="tip success">
+            ✅ GitHub Token 已配置，爬虫功能可用！每次都会重新生成。
+        </div>
+        <button onclick="generateNote()">🚀 重新生成笔记</button>
+        <div id="status"></div>
+    </div>
 
-# 从环境变量读取 API Key（你的OpenRouter的Key）
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    <script>
+        // 请修改这里的配置为你自己的信息
+        const GITHUB_USERNAME =  "xiaoyu8906";
+        const REPO_NAME = "yuwen-note";
+        const GITHUB_TOKEN = "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";
 
-def crawl_hanchacha(lesson_name, lesson_url=None):
-    """爬取资料：如果有手动输入的链接，就直接爬这个，否则自动搜索"""
-    all_text = ""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    # 如果用户手动输入了链接，直接爬这个链接
-    if lesson_url and lesson_url.startswith('http'):
-        print(f"  🔍 正在爬取手动输入的链接: {lesson_url}")
-        try:
-            page_resp = requests.get(lesson_url, headers=headers, timeout=10)
-            page_soup = BeautifulSoup(page_resp.text, 'html.parser')
-            content_div = page_soup.find('article') or page_soup.find('div', class_='entry-content')
-            
-            if content_div:
-                text = content_div.get_text(strip=True)
-                text = re.sub(r'\s+', ' ', text)
-                all_text = text[:4000]
-                return all_text
-        except Exception as e:
-            print(f"  手动链接爬取失败，将尝试自动搜索: {e}")
-    
-    # 没有链接或者链接失败，就自动搜索
-    print(f"  🔍 正在从 hanchacha.com 搜索《{lesson_name}》...")
-    try:
-        search_url = f"https://hanchacha.com/?s={lesson_name}"
-        response = requests.get(search_url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        links = soup.find_all('a', href=True)
-        found_urls = []
-        
-        for link in links:
-            href = link.get('href', '')
-            text = link.get_text().lower()
-            if lesson_name.lower() in text and 'hanchacha.com' in href:
-                if href not in found_urls:
-                    found_urls.append(href)
-        
-        print(f"    找到 {len(found_urls)} 个相关页面")
-        
-        for url in found_urls[:3]:
-            try:
-                page_resp = requests.get(url, headers=headers, timeout=10)
-                page_soup = BeautifulSoup(page_resp.text, 'html.parser')
-                content_div = page_soup.find('article') or page_soup.find('div', class_='entry-content')
-                
-                if content_div:
-                    text = content_div.get_text(strip=True)
-                    text = re.sub(r'\s+', ' ', text)
-                    all_text += f"\n\n---\n{text[:1500]}"
-            except:
-                continue
-                
-    except Exception as e:
-        print(f"  hanchacha 爬取失败: {e}")
-    
-    return all_text[:4000]
+        async function generateNote() {
+            const lessonName = document.getElementById('lessonName').value.trim();
+            const lessonUrl = document.getElementById('lessonUrl').value.trim();
+            if (!lessonName) {
+                alert("请输入课文名！");
+                return;
+            }
 
-def generate_with_ai(lesson_name, raw_materials):
-    """使用 OpenRouter 的 AI 生成详细的学霸笔记"""
-    
-    print(f"  🤖 AI 状态: {'已启用' if OPENAI_API_KEY else '未配置'}")
-    
-    if not OPENAI_API_KEY:
-        return generate_fallback_note(lesson_name, raw_materials)
-    
-    try:
-        print("  🤖 正在调用 OpenRouter API...")
-        
-        prompt = f"""你是小学语文特级教师。请为课文《{lesson_name}》生成一份超级详细的学霸笔记。
+            const status = document.getElementById('status');
+            status.textContent = "正在触发自动化流程，请稍候...";
 
-【要求】
-1. 必须像下面示例一样详细、专业
-2. 每个表格都要填满具体内容
-3. 写出具体的词语、句子、分析、写作技巧
-4. 绝对不能留空或用"请根据课文填写"
+            try {
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/actions/workflows/crawl.yml/dispatches`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
+                    body: JSON.stringify({
+                        ref: 'main',
+                        inputs: {
+                            lesson_name: lessonName,
+                            lesson_url: lessonUrl
+                        }
+                    })
+                });
 
-【参考详细程度】：
-《海底世界》示例：
-- 课文简介：科普性说明文，从环境、动物、植物、矿产四方面介绍
-- 文章结构：表格（部分、自然段、内容、作用）
-- 写作特色：对比+拟人，有具体例子和写作小技巧
-- 词语积累：必会字词、近义词、反义词、AABC式词语
-- 仿写句式：有的...有的...有的...，有原句和仿写
-- 课后挑战：3个具体任务
-
-请按以下格式输出：
-
-# 🌊 探秘{lesson_name} · 学霸综合笔记 🐠
-
-> 一份集**知识点、课堂笔记、教学思路**于一体的超实用手册
-
----
-
-## 📚 一、课文一瞥：它讲了什么？
-
-（写具体内容）
-
-*   **核心问题**：
-*   **主要内容**：
-*   **中心句**：
-
----
-
-## 🧱 二、文章结构：总分总，超清晰！
-
-| 部分 | 自然段 | 内容 | 作用 |
-|------|--------|------|------|
-| 开头 | | | |
-| 中间 | | | |
-| 结尾 | | | |
-
-> 💡 **写作要点：**
-
----
-
-## ✨ 三、阅读与写作：深挖课文"宝藏"
-
-### 写作特色分析
-
-| 阅读要点 | 写法分析 | 写作小技巧 |
-|----------|----------|------------|
-| | | |
-| | | |
-| | | |
-
-> 💡 **写作要点：**
-
----
-
-## 📝 四、语言积累：词语库+句式库
-
-### 重点词语
-
-| 类别 | 词语 |
-|------|------|
-| 必会字词 | |
-| 近义词 | |
-| 反义词 | |
-| 成语/AABC | |
-
-### 仿写句式
-
-> **句式名称**
->
-> *   **课文原句**：
-> *   **仿写示例**：
-
----
-
-## 🎯 五、课后挑战：小试牛刀
-
-1. **朗读小能手**：
-2. **小小解说员**：
-3. **妙笔生花**：
-
----
-
-【参考资料】
-{raw_materials[:3000]}
-
-请直接输出笔记，不要输出解释。"""
-
-        response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "openai/gpt-3.5-turbo",
-                "messages": [
-                    {"role": "system", "content": "你是小学语文特级教师，擅长写超详细、超专业的课文笔记。"},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.8,
-                "max_tokens": 4500
-            },
-            timeout=90
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            note = result["choices"][0]["message"]["content"]
-            print(f"  ✅ AI 生成成功！笔记长度: {len(note)} 字")
-            return note
-        else:
-            print(f"  ⚠️ AI 调用失败: {response.status_code}")
-            return generate_fallback_note(lesson_name, raw_materials)
-            
-    except Exception as e:
-        print(f"  ⚠️ AI 异常: {e}")
-        return generate_fallback_note(lesson_name, raw_materials)
-
-def generate_fallback_note(lesson_name, raw_materials):
-    """备用笔记"""
-    return f"""# 📖 {lesson_name} · 学习笔记
-
-> 正在努力生成中...
-
----
-
-## 📚 课文内容
-
-{raw_materials[:500] if raw_materials else f"《{lesson_name}》是一篇优美的课文。"}
-
----
-
-## 📝 学习建议
-
-1. 朗读课文3遍
-2. 标出生字词
-3. 思考课文主要内容
-
----
-
-*生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}*
-"""
-
-def main():
-    if len(sys.argv) < 2:
-        print("请提供课文名称")
-        sys.exit(1)
-    
-    lesson_name = sys.argv[1]
-    # 接收用户手动输入的链接
-    lesson_url = sys.argv[2] if len(sys.argv) > 2 else None
-    # 处理空的情况
-    if lesson_url == "None" or lesson_url == "":
-        lesson_url = None
-    
-    print("=" * 50)
-    print(f"🕷️ 正在为《{lesson_name}》生成笔记...")
-    print(f"🤖 OpenRouter API: {'已配置' if OPENAI_API_KEY else '未配置'}")
-    print("=" * 50)
-    
-    print("\n⭐ 爬取 hanchacha.com...")
-    hanchacha_text = crawl_hanchacha(lesson_name, lesson_url)
-    
-    print("\n🤖 调用 AI 生成笔记...")
-    note = generate_with_ai(lesson_name, hanchacha_text)
-    
-    os.makedirs('data', exist_ok=True)
-    output_file = f"data/{lesson_name}.md"
-    
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(note)
-    
-    print(f"\n✅ 笔记已保存: {output_file}")
-
-if __name__ == "__main__":
-    main()
+                if (response.ok) {
+                    status.textContent = `触发成功！正在为《${lessonName}》生成笔记，完成后会自动保存到仓库的data目录~`;
+                } else {
+                    status.textContent = "触发失败，请检查你的GitHub配置是否正确。";
+                }
+            } catch (e) {
+                status.textContent = "出错了：" + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
