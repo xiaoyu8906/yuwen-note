@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       lesson_name:
-        description: '课文名'
+        description: '课文名称'
         required: true
         type: string
       lesson_url:
@@ -14,13 +14,11 @@ on:
         type: string
 
 jobs:
-  build:
+  run:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -30,22 +28,16 @@ jobs:
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install -r requirements.txt
 
       - name: 运行爬虫和AI生成
         env:
-          # 你的OpenRouter的Key
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          LESSON_NAME: ${{ inputs.lesson_name }}
-          LESSON_URL: ${{ inputs.lesson_url }}
         run: |
-          # 把用户输入的链接也传给脚本，支持手动输入
-          python crawler.py $LESSON_NAME $LESSON_URL
+          python crawler.py ${{ inputs.lesson_name }} ${{ inputs.lesson_url }}
 
       - name: 提交并推送新笔记
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name: "GitHub Action"
-          git add data/
-          git commit -m "爬取:${{ inputs.lesson_name }}" || echo "没有新文件需要提交"
-          git push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'Add note: ${{ inputs.lesson_name }}'
+          file_pattern: 'data/*.md'
