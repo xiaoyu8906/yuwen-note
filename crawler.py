@@ -11,10 +11,11 @@ client = OpenAI(
 )
 
 def search_lesson_url(lesson_name):
-    # 搜索hanchacha的课文
-    search_url = f"https://hanchacha.com/search?keyword={lesson_name}"
+    # 修复了搜索参数，现在用正确的q参数
+    search_url = f"https://hanchacha.com/search?q={lesson_name}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://hanchacha.com/"
     }
     response = requests.get(search_url, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -26,12 +27,15 @@ def search_lesson_url(lesson_name):
 
 def get_lesson_content(url):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://hanchacha.com/"
     }
     response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
-    # 提取课文内容
-    content = soup.find("div", class_="content")
+    # 修复了内容提取，兼容新的页面结构
+    content = soup.find("div", class_="article-content")
+    if not content:
+        content = soup.find("div", class_="content")
     if content:
         return content.get_text(strip=True)
     return None
